@@ -6,7 +6,6 @@ import _thread
 
 reportTime = 1
 
-
 th = Thermometer(11)
 sm = SmokeGasSensor(28)
 buzzer = Buzzer(20, 100, 10)
@@ -15,8 +14,11 @@ LED = Pin(7, Pin.OUT)
 bt = UART(0, baudrate=9600, bits=8, parity=None, stop=1, tx=Pin(0), rx=Pin(1))
 driver = Driver()
 
-smokeLimit = 200
-tempLimit = 35
+smokeLimit = 40000
+tempMin = -17
+tempMax = 35
+humiditiyMax = 70
+
 
 lastInterruptTime = 0
 play = True
@@ -36,6 +38,7 @@ def callback(pin) :
     if(debounce()) :
         global play
         play = not play
+        print("TOGGLE ENABLED TO " + str(play))
 
 
 
@@ -47,11 +50,14 @@ time = utime.time()
 speed = 50
 
 def Begin() :
+    buzzerPlay = False
     while(True) :
         if(play) :
             i = bt.read()
             if(i != None) :
                 i = str(i).strip("b\'")
+                if(len(i) < 1) :
+                    continue
                 if(i[0] == 'w') :
                     print("UP")
                     driver.DriveForward(speed)
@@ -66,7 +72,13 @@ def Begin() :
                 else :
                     driver.DriveForward(0)
 
+                if(i[0] == 'f'):
+                    buzzerPlay = not buzzerPlay
+                    print("BUZZER SWITCH")
+                    bt.sendbreak()
+
                 if(i[0] == 'p') :
+                    print("READING SENSORS")
                     time = utime.time()
 
                     th.Update()
@@ -74,20 +86,13 @@ def Begin() :
                     bt.write(f"Temperature: {th.temperature}C ")
                     bt.write(f"Humidity: {th.humidity} ")
 
-                    # if(th.temperature > 25) :
-                    #     buzzer.on()
-                    #     LED.on()
-                    # else :
-                    #     buzzer.off()
-                    #     LED.off()
-
                     sm.Update()
 
                     bt.write(f"Methane: {sm.methane} ")
                     bt.write(f"LPG: {sm.LPG} ")
                     bt.write(f"Hydrogen: {sm.hydrogen} ")
                     bt.write(f"Smoke: {sm.smoke}\n\r")
-                    if(sm.smoke > smokeLimit or th.temperature > tempLimit) :
+                    if(sm.smoke > smokeLimit or th.temperature > tempMax or th.humidity > humiditiyMax or th.temperature < tempMin or buzzerPlay) :
                         buzzer.on()
                         LED.on()
                     else :
@@ -100,4 +105,3 @@ def Begin() :
             utime.sleep(0.1) 
 
 Begin()
-# programThread : int = _thread.start_new_thread(Begin)
